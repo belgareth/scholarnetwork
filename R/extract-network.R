@@ -24,26 +24,38 @@
 
 extractNetwork <- function(id, n=500, largest_component=FALSE, ...){
 
-  # downloading publications
-  pubs <- scholar::get_publications(id=id, pagesize=n, ...)
+ # downloading publications
+ # Removed pagesize argument as it's no longer recognized
+ pubs <- scholar::get_publications(id=id, ...)
 
-  # converting to edges
-  edges <- lapply(pubs$author, extractAuthors)
-  edges <- do.call(rbind, edges)
-  edges <- aggregate(edges$weight,
+ # converting to edges
+ edges <- lapply(pubs$author, extractAuthors)
+ edges <- do.call(rbind, edges)
+ edges <- aggregate(edges$weight,
                      by=list(node1=edges$node1, node2=edges$node2),
                      FUN=function(x) sum(x))
-  names(edges)[3] <- "weight"
+ names(edges)[3] <- "weight"
 
-  # extracting node-level information
-  network <- igraph::graph.edgelist(as.matrix(edges[,c("node1", "node2")]), 
+ # extracting node-level information
+ network <- igraph::graph.edgelist(as.matrix(edges[,c("node1", "node2")]), 
     directed=FALSE)
-  igraph::edge_attr(network, "weight") <- edges$weight
+ igraph::edge_attr(network, "weight") <- edges$weight
  
-  ### SELECT LARGEST COMPONENT
-  if (largest_component==TRUE){
+ ### SELECT LARGEST COMPONENT
+ if (largest_component==TRUE){
     network <- decompose(network)[[1]]
-  }
+ }
+
+ fc <- igraph::walktrap.community(network)
+ nodes <- data.frame(label = igraph::V(network)$name,
+                      degree=igraph::strength(network), group=fc$membership,
+                      stringsAsFactors=F)
+ nodes <- nodes[order(nodes$label),]
+ if (largest_component==TRUE){
+    edges <- edges[edges$node1 %in% nodes$label & edges$node2 %in% nodes$label,]
+ }
+ return(list(nodes=nodes, edges=edges))
+}
 
   fc <- igraph::walktrap.community(network)
   nodes <- data.frame(label = igraph::V(network)$name,
