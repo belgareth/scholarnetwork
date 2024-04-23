@@ -1,4 +1,3 @@
-#' extractNetwork
 #' @export
 #'
 #' @title
@@ -25,7 +24,6 @@
 extractNetwork <- function(id, n=500, largest_component=FALSE, ...){
 
  # downloading publications
- # Removed pagesize argument as it's no longer recognized
  pubs <- scholar::get_publications(id=id, ...)
 
  # converting to edges
@@ -57,39 +55,40 @@ extractNetwork <- function(id, n=500, largest_component=FALSE, ...){
  return(list(nodes=nodes, edges=edges))
 }
 
-  fc <- igraph::walktrap.community(network)
-  nodes <- data.frame(label = igraph::V(network)$name,
-                      degree=igraph::strength(network), group=fc$membership,
-                      stringsAsFactors=F)
-  nodes <- nodes[order(nodes$label),]
-  if (largest_component==TRUE){
-    edges <- edges[edges$node1 %in% nodes$label & edges$node2 %in% nodes$label,]
-  }
-  return(list(nodes=nodes, edges=edges))
-}
-
 extractAuthors <- function(x){
-  authors <- unlist(stringr::str_split(x, ","))
-  # deleting empty authors
-  authors <- authors[grepl('[A-Za-z]+', authors)]
-  # cleaning author list
-  authors <- stringr::str_trim(authors)
-  # keeping only initial of first name
-  first <- gsub('(^[A-Z]{1}).*', authors, repl="\\1")
-  last <- gsub("^[A-Z]* ([[:alnum:]'’]+).*", authors, repl="\\1")
-  #fix curly apostrophes
-  last <- gsub('’', "\\'", last)
-  # fixing capitalization of last name
-  last <- gsub("(^|'|’|[[:space:]])([[:alpha:]])", "\\1\\U\\2", last, perl=TRUE)
-  last <- stringr::str_to_title(last)
-  authors <- paste(first, last, sep=" ")
-  # if more than one author, create edge list
-  if (length(authors)>1){
+ authors <- unlist(stringr::str_split(x, ","))
+ # Normalize author names
+ authors <- sapply(authors, normalizeAuthorName)
+ # Delete empty authors
+ authors <- authors[grepl('[A-Za-z]+', authors)]
+ # Cleaning author list
+ authors <- stringr::str_trim(authors)
+ # Keeping only initial of first name
+ first <- gsub('(^[A-Z]{1}).*', authors, repl="\\1")
+ last <- gsub("^[A-Z]* ([[:alnum:]'’]+).*", authors, repl="\\1")
+ # Fix curly apostrophes
+ last <- gsub('’', "\\'", last)
+ # Fixing capitalization of last name
+ last <- gsub("(^|'|’|[[:space:]])([[:alpha:]])", "\\1\\U\\2", last, perl=TRUE)
+ last <- stringr::str_to_title(last)
+ authors <- paste(first, last, sep=" ")
+ # If more than one author, create edge list
+ if (length(authors) > 1) {
     edges <- as.data.frame(t(combn(x=authors, m=2)), stringsAsFactors=F)
     names(edges) <- c("node1", "node2")
     edges$weight <- 1/length(authors)
     return(edges)
-  }
-  if (length(authors)<=1) return(NULL)
+ }
+ if (length(authors) <= 1) return(NULL)
 }
 
+# Define a normalization function
+normalizeAuthorName <- function(name) {
+ # Remove diacritics
+ name <- iconv(name, to = "ASCII//TRANSLIT")
+ # Convert to lowercase
+ name <- tolower(name)
+ # Trim whitespace
+ name <- trimws(name)
+ return(name)
+}
